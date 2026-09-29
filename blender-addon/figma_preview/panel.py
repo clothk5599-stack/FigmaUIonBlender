@@ -94,6 +94,7 @@ class FIGMAPREVIEW_PT_guides(bpy.types.Panel):
         col.prop(settings, "show_center_lines")
         col.prop(settings, "show_frame_border")
         col.prop(settings, "guide_color")
+        col.prop(settings, "fit_camera_frame")
         col.prop(settings, "avoid_side_panels")
 
 

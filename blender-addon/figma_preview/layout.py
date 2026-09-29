@@ -40,6 +40,23 @@ def visible_bounds(region_w, region_h, overlaps=()):
     return int(x0), int(y0), int(x1 - x0), int(y1 - y0)
 
 
+def bounding_rect(points):
+    """Integer rect ``(x, y, w, h)`` enclosing 2D ``points``, or None.
+
+    Used for the camera frame: its four corners projected into the region.
+    """
+    points = [p for p in points if p is not None]
+    if len(points) < 2:
+        return None
+    xs = [p[0] for p in points]
+    ys = [p[1] for p in points]
+    x0, y0 = round(min(xs)), round(min(ys))
+    w, h = round(max(xs)) - x0, round(max(ys)) - y0
+    if w < 1 or h < 1:
+        return None
+    return int(x0), int(y0), int(w), int(h)
+
+
 def place(bounds, content_w, content_h, mode=FIT):
     """Rect for content of ``content_w x content_h`` centered in ``bounds``.
 

@@ -10,6 +10,7 @@ import os
 import bpy
 import gpu
 import numpy as np
+from bpy_extras.view3d_utils import location_3d_to_region_2d
 from gpu_extras.batch import batch_for_shader
 
 from . import layout
@@ -215,17 +216,40 @@ def _region_overlaps(area, region):
     return rects
 
 
+def camera_frame_rect(context):
+    """The active camera's frame (the render border) in region pixels, when
+    looking through the camera; otherwise None.
+
+    Only the rectangle is taken from the camera. The UI itself is still
+    drawn flat in screen space, so the camera cannot distort it.
+    """
+    region, rv3d, scene = context.region, context.region_data, context.scene
+    if rv3d is None or rv3d.view_perspective != "CAMERA" or scene is None:
+        return None
+    camera = scene.camera
+    if camera is None or camera.type != "CAMERA":
+        return None
+    matrix = camera.matrix_world
+    corners = [matrix @ v for v in camera.data.view_frame(scene=scene)]
+    return layout.bounding_rect(
+        [location_3d_to_region_2d(region, rv3d, corner) for corner in corners])
+
+
 def compute_layout(context, settings):
     """Preview rect for the current region, or None if nothing to draw."""
     region = context.region
     if region is None or not state.has_image:
         return None
     rw, rh = region.width, region.height
+    content_w, content_h = state.content_size()
+    if settings.fit_camera_frame:
+        frame = camera_frame_rect(context)
+        if frame is not None:
+            return layout.place(frame, content_w, content_h, settings.display_mode)
     if settings.avoid_side_panels and context.area is not None:
         bounds = layout.visible_bounds(rw, rh, _region_overlaps(context.area, region))
     else:
         bounds = (0, 0, rw, rh)
-    content_w, content_h = state.content_size()
     return layout.place(bounds, content_w, content_h, settings.display_mode)
 
 

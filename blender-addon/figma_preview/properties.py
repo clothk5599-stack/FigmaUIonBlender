@@ -31,6 +31,10 @@ class FigmaPreviewSettings(bpy.types.PropertyGroup):
         ),
         default="FIT", update=_redraw,
     )
+    fit_camera_frame: BoolProperty(
+        name="Fit to Camera Frame", default=True, update=_redraw,
+        description="When looking through the camera, fit the UI to the camera frame "
+                    "(the area that renders) instead of the whole viewport")
     avoid_side_panels: BoolProperty(
         name="Avoid Side Panels", default=True, update=_redraw,
         description="Fit the preview between the toolbar, sidebar and headers "
