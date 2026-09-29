@@ -1,6 +1,8 @@
 import bpy
 
+from . import sync
 from .network import poller
+from .receiver import receiver
 from .state import state
 
 
@@ -21,21 +23,27 @@ class FIGMAPREVIEW_PT_main(bpy.types.Panel):
 
         # Status
         col = layout.column(align=True)
-        if poller.running and state.connected:
-            col.label(text="Connected", icon="LINKED")
+        builtin = sync.mode() == "BUILTIN"
+        if receiver.running:
+            col.label(text="Listening for Figma", icon="LINKED")
+            col.label(text=receiver.address)
+        elif poller.running and state.connected:
+            col.label(text="Connected to bridge", icon="LINKED")
         elif poller.running:
             col.label(text="Waiting for bridge…" if state.connecting else "Bridge offline",
                       icon="TIME" if state.connecting else "ERROR")
         else:
-            col.label(text="Not connected", icon="UNLINKED")
+            col.label(text="Stopped", icon="UNLINKED")
         if state.last_error and not state.connected:
-            col.label(text=state.last_error[:60])
+            col.label(text=state.last_error[:60], icon="ERROR")
 
         row = layout.row(align=True)
-        if poller.running:
-            row.operator("figma_preview.disconnect", icon="CANCEL")
+        if sync.is_running():
+            row.operator("figma_preview.disconnect", icon="CANCEL",
+                         text="Stop" if builtin else "Disconnect")
         else:
-            row.operator("figma_preview.connect", icon="PLAY")
+            row.operator("figma_preview.connect", icon="PLAY",
+                         text="Start" if builtin else "Connect")
         row.operator("figma_preview.reload", icon="FILE_REFRESH")
 
         # Frame info
@@ -46,7 +54,7 @@ class FIGMAPREVIEW_PT_main(bpy.types.Panel):
             box.label(text=f"{_fmt(width)} × {_fmt(height)}")
             if (state.pixel_width, state.pixel_height) != (round(width), round(height)):
                 box.label(text=f"Image {state.pixel_width} × {state.pixel_height} px")
-            if state.source == "bridge":
+            if state.source == "figma":
                 box.label(text=f"Version {state.version}")
             else:
                 box.label(text="Loaded from file")

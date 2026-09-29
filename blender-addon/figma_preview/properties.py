@@ -1,7 +1,8 @@
 """Saved settings: per-scene display options and add-on preferences."""
 
 import bpy
-from bpy.props import BoolProperty, EnumProperty, FloatProperty, FloatVectorProperty, StringProperty
+from bpy.props import (BoolProperty, EnumProperty, FloatProperty, FloatVectorProperty,
+                       IntProperty, StringProperty)
 
 from . import overlay
 
@@ -10,10 +11,10 @@ def _redraw(self, context):
     overlay.tag_redraw()
 
 
-def _restart_poller(self, context):
+def _restart(self, context):
     from . import sync
 
-    if sync.is_connected_or_connecting():
+    if sync.is_running():
         sync.connect()
 
 
@@ -51,18 +52,34 @@ class FigmaPreviewSettings(bpy.types.PropertyGroup):
 class FigmaPreviewPreferences(bpy.types.AddonPreferences):
     bl_idname = __package__
 
+    receive_mode: EnumProperty(
+        name="Receive Mode",
+        items=(
+            ("BUILTIN", "Direct from Figma",
+             "Blender listens for the Figma plugin itself. Nothing else to run"),
+            ("BRIDGE", "External Bridge",
+             "Poll a separately running bridge/server.py"),
+        ),
+        default="BUILTIN", update=_restart,
+    )
+    port: IntProperty(name="Port", default=8765, min=1024, max=65535, update=_restart,
+                      description="Local port the Figma plugin sends to (127.0.0.1 only)")
     bridge_url: StringProperty(name="Bridge URL", default="http://127.0.0.1:8765",
-                               update=_restart_poller)
+                               update=_restart)
     poll_interval: FloatProperty(name="Poll Interval", default=0.25, min=0.05, max=10.0,
-                                 unit="TIME_ABSOLUTE", update=_restart_poller,
+                                 unit="TIME_ABSOLUTE", update=_restart,
                                  description="Seconds between bridge status checks")
-    auto_connect: BoolProperty(name="Connect on Startup", default=True,
-                               description="Start polling the bridge when Blender starts")
+    auto_connect: BoolProperty(name="Start on Startup", default=True,
+                               description="Start receiving when Blender starts")
 
     def draw(self, context):
         layout = self.layout
-        layout.prop(self, "bridge_url")
-        layout.prop(self, "poll_interval")
+        layout.prop(self, "receive_mode", expand=True)
+        if self.receive_mode == "BUILTIN":
+            layout.prop(self, "port")
+        else:
+            layout.prop(self, "bridge_url")
+            layout.prop(self, "poll_interval")
         layout.prop(self, "auto_connect")
 
 

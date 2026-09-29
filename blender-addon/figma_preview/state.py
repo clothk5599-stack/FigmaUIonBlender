@@ -15,7 +15,7 @@ class UIState:
         # Size of the texture in pixels (width * scale on export).
         self.pixel_width = 0
         self.pixel_height = 0
-        self.source = ""  # "bridge" or "file"
+        self.source = ""  # "figma" (pushed) or "file" (loaded from disk)
         self.file_path = ""
         # gpu.types.GPUTexture. Replaced in one assignment so the previous
         # texture stays on screen until the next one is fully uploaded.

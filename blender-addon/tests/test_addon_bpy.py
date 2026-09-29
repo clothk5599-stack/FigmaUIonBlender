@@ -101,10 +101,15 @@ def test_poller_downloads_new_versions(tmp_path):
 
 
 def test_connect_disconnect_operators(addon):
+    from figma_preview import sync
+    from figma_preview.receiver import receiver
+
+    # Default mode: Blender listens for the Figma plugin itself.
+    assert sync.mode() == "BUILTIN"
     assert bpy.ops.figma_preview.connect() == {"FINISHED"}
-    assert network.poller.running
+    assert receiver.running and state.connected and not network.poller.running
     assert bpy.ops.figma_preview.disconnect() == {"FINISHED"}
-    assert not network.poller.running and not state.connected
+    assert not receiver.running and not state.connected
 
 
 def test_failed_load_keeps_previous_image_and_removes_temp_file(addon, tmp_path, monkeypatch):
