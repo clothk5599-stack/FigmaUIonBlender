@@ -140,3 +140,68 @@ def test_failed_load_keeps_previous_image_and_removes_temp_file(addon, tmp_path,
     assert (render.resolution_x, render.resolution_y, render.resolution_percentage) == (150, 50, 100)
     overlay.clear_image()
     assert state.texture is None
+
+
+def test_camera_frame_rect_matches_camera_projection(addon):
+    """In camera view the UI fits the camera frame (render border)."""
+    from types import SimpleNamespace
+
+    from figma_preview import overlay
+
+    scene = bpy.context.scene
+    camera = bpy.data.objects.new("UICam", bpy.data.cameras.new("UICam"))
+    scene.collection.objects.link(camera)
+    camera.location = (3.0, -4.0, 2.0)
+    camera.rotation_euler = (1.1, 0.0, 0.6)
+    camera.data.lens = 85
+    scene.camera = camera
+    scene.render.resolution_x, scene.render.resolution_y = 2048, 460
+    scene.render.resolution_percentage = 100
+    bpy.context.view_layer.update()
+
+    # A viewport the size of the render, projecting exactly like the camera:
+    # the camera frame must then cover the whole region.
+    w, h = 1024, 230
+    depsgraph = bpy.context.evaluated_depsgraph_get()
+    projection = camera.calc_matrix_camera(depsgraph, x=w, y=h)
+    rv3d = SimpleNamespace(view_perspective="CAMERA",
+                           perspective_matrix=projection @ camera.matrix_world.inverted())
+    region = SimpleNamespace(width=w, height=h)
+    context = SimpleNamespace(region=region, region_data=rv3d, scene=scene)
+
+    x, y, fw, fh = overlay.camera_frame_rect(context)
+    assert abs(x) <= 1 and abs(y) <= 1 and abs(fw - w) <= 1 and abs(fh - h) <= 1
+
+    # Not looking through the camera: no camera frame.
+    rv3d.view_perspective = "PERSP"
+    assert overlay.camera_frame_rect(context) is None
+
+
+def test_camera_follows_ui_size_on_push(addon, tmp_path, monkeypatch):
+    from figma_preview import overlay, sync
+
+    monkeypatch.setattr(overlay, "load_texture", lambda path: (object(), 2048, 460))
+    scene = bpy.context.scene
+    settings = scene.figma_preview
+    render = scene.render
+    render.resolution_x, render.resolution_y, render.resolution_percentage = 1920, 1080, 50
+
+    def push(name, w, h):
+        path = tmp_path / f"{name}.png"
+        path.write_bytes(b"x")
+        sync._handle(("image", str(path), {"version": 1, "name": name, "width": w, "height": h}))
+
+    assert settings.camera_follows_ui  # on by default
+    push("Home", 2048.0, 460.0)
+    assert (render.resolution_x, render.resolution_y, render.resolution_percentage) == (2048, 460, 100)
+
+    push("Nav", 1920.0, 720.0)  # a different frame size reshapes the camera
+    assert (render.resolution_x, render.resolution_y) == (1920, 720)
+
+    settings.camera_follows_ui = False
+    push("Media", 800.0, 600.0)
+    assert (render.resolution_x, render.resolution_y) == (1920, 720)  # left alone
+
+    settings.camera_follows_ui = True  # turning it back on applies immediately
+    assert (render.resolution_x, render.resolution_y) == (800, 600)
+    overlay.clear_image()

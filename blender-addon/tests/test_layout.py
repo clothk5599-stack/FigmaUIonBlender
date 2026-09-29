@@ -83,3 +83,17 @@ def test_guides():
     assert len(layout.outline((0, 0, 10, 10))) == 4
     v, h = layout.center_lines((0, 0, 101, 51))
     assert v == (50, 0, 1, 51) and h == (0, 25, 101, 1)
+
+
+def test_bounding_rect_of_projected_corners():
+    corners = [(10.4, 20.6), (210.2, 20.1), (210.3, 120.4), (10.1, 120.2), None]
+    assert layout.bounding_rect(corners) == (10, 20, 200, 100)
+    assert layout.bounding_rect([None, None]) is None
+    assert layout.bounding_rect([(5, 5), (5.2, 5.1)]) is None  # degenerate
+
+
+def test_fit_inside_camera_frame():
+    # Camera frame 1000x250 at (100, 200); a 2048x460 UI is fitted inside it.
+    x, y, w, h = layout.place((100, 200, 1000, 250), 2048, 460)
+    assert (x, w) == (100, 1000) and h == round(460 * 1000 / 2048)
+    assert y == 200 + (250 - h) // 2

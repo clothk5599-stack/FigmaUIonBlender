@@ -77,10 +77,17 @@ the selected frame or select a different one.
   Figma pixel per screen pixel.
 - **Display ▸**: **Dim Outside Frame** (with an amount), **Safe Area** (with an
   inset margin), **Center Lines**, **Frame Border**, and guide color.
-  **Avoid Side Panels** fits the preview between the toolbar, sidebar, and
+  **Camera Follows UI Size** (on by default): every push sets the scene's
+  render resolution to the Figma frame size (for example 2048 × 460), so the
+  camera frame always has the UI's size and shape. Turn it off to keep your
+  own render size.
+  **Fit to Camera Frame** (on by default): when you look through the camera
+  (Numpad 0), the UI fits the camera frame, the outlined area that renders,
+  instead of the whole viewport. Turn it off to keep the UI on the whole
+  viewport in camera view too. **Avoid Side Panels** fits the preview between the toolbar, sidebar, and
   headers when Region Overlap is on.
 - **Tools ▸**:
-  - **Match Render Resolution** sets the scene render size to the frame size, so the camera frame has the same aspect ratio.
+  - **Match Render Resolution** sets the scene render size to the frame size once, for when **Camera Follows UI Size** is off.
   - **Load PNG** shows a PNG from disk (for example, one you exported from Figma by hand). The next push from Figma replaces it.
   - **Clear** removes the image.
 
@@ -90,8 +97,12 @@ the selected frame or select a different one.
   `SpaceView3D.draw_handler_add(..., "WINDOW", "POST_PIXEL")`. The image is a
   2D quad in region pixel coordinates, drawn after the scene. It never goes
   through the view or camera projection, so the camera can only change the 3D
-  scene. This is the same in camera view (Numpad 0): the UI stays fixed to
-  the viewport.
+  scene. With **Camera Follows UI Size**, the camera adapts to the UI rather
+  than the other way round: the render size follows the frame, so in camera
+  view the UI fills the camera frame exactly. **Fit to Camera Frame** only takes the
+  camera frame's on-screen rectangle to decide where the UI goes. The UI is
+  still drawn flat, so it follows the frame when you zoom or pan the view, but
+  focal length and camera moves can't distort it.
 - **Aspect ratio comes from Figma.** The preview rectangle is computed from the
   pushed frame's width and height (`layout.py`) and rounded to whole pixels.
   When you push a frame with a different size, the preview rectangle updates
