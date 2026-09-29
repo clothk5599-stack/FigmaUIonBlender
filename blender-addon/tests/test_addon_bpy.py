@@ -175,3 +175,33 @@ def test_camera_frame_rect_matches_camera_projection(addon):
     # Not looking through the camera: no camera frame.
     rv3d.view_perspective = "PERSP"
     assert overlay.camera_frame_rect(context) is None
+
+
+def test_camera_follows_ui_size_on_push(addon, tmp_path, monkeypatch):
+    from figma_preview import overlay, sync
+
+    monkeypatch.setattr(overlay, "load_texture", lambda path: (object(), 2048, 460))
+    scene = bpy.context.scene
+    settings = scene.figma_preview
+    render = scene.render
+    render.resolution_x, render.resolution_y, render.resolution_percentage = 1920, 1080, 50
+
+    def push(name, w, h):
+        path = tmp_path / f"{name}.png"
+        path.write_bytes(b"x")
+        sync._handle(("image", str(path), {"version": 1, "name": name, "width": w, "height": h}))
+
+    assert settings.camera_follows_ui  # on by default
+    push("Home", 2048.0, 460.0)
+    assert (render.resolution_x, render.resolution_y, render.resolution_percentage) == (2048, 460, 100)
+
+    push("Nav", 1920.0, 720.0)  # a different frame size reshapes the camera
+    assert (render.resolution_x, render.resolution_y) == (1920, 720)
+
+    settings.camera_follows_ui = False
+    push("Media", 800.0, 600.0)
+    assert (render.resolution_x, render.resolution_y) == (1920, 720)  # left alone
+
+    settings.camera_follows_ui = True  # turning it back on applies immediately
+    assert (render.resolution_x, render.resolution_y) == (800, 600)
+    overlay.clear_image()

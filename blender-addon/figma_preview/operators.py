@@ -89,12 +89,7 @@ class FIGMAPREVIEW_OT_match_render(bpy.types.Operator):
         return state.has_image
 
     def execute(self, context):
-        width, height = state.content_size()
-        render = context.scene.render
-        render.resolution_x = max(4, round(width))
-        render.resolution_y = max(4, round(height))
-        render.resolution_percentage = 100
-        render.pixel_aspect_x = render.pixel_aspect_y = 1.0
+        overlay.match_render_resolution(context.scene)
         return {"FINISHED"}
 
 

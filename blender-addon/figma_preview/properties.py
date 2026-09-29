@@ -11,6 +11,12 @@ def _redraw(self, context):
     overlay.tag_redraw()
 
 
+def _camera_follows_ui(self, context):
+    if self.camera_follows_ui:
+        overlay.match_render_resolution(context.scene)
+    overlay.tag_redraw()
+
+
 def _restart(self, context):
     from . import sync
 
@@ -31,6 +37,10 @@ class FigmaPreviewSettings(bpy.types.PropertyGroup):
         ),
         default="FIT", update=_redraw,
     )
+    camera_follows_ui: BoolProperty(
+        name="Camera Follows UI Size", default=True, update=_camera_follows_ui,
+        description="Set the scene's render resolution to the Figma frame size on every "
+                    "push, so the camera frame always has the UI's size and shape")
     fit_camera_frame: BoolProperty(
         name="Fit to Camera Frame", default=True, update=_redraw,
         description="When looking through the camera, fit the UI to the camera frame "

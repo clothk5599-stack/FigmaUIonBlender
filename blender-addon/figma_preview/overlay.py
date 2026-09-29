@@ -146,7 +146,32 @@ def set_image(path, name="", width=0.0, height=0.0, version=0, source="figma"):
     state.source = source
     if source == "file":
         state.file_path = path
+    scene = bpy.context.scene
+    settings = getattr(scene, "figma_preview", None) if scene else None
+    if settings is not None and settings.camera_follows_ui:
+        match_render_resolution(scene)
     tag_redraw()
+
+
+def match_render_resolution(scene):
+    """Make the camera fit the UI: set the render size to the frame size.
+
+    The camera frame then has exactly the UI's aspect ratio, so in camera
+    view (with Fit to Camera Frame) the UI fills it. Returns True if the
+    render settings changed.
+    """
+    if scene is None or not state.has_image:
+        return False
+    width, height = state.content_size()
+    target = (max(4, round(width)), max(4, round(height)), 100, 1.0, 1.0)
+    render = scene.render
+    current = (render.resolution_x, render.resolution_y, render.resolution_percentage,
+               render.pixel_aspect_x, render.pixel_aspect_y)
+    if current == target:
+        return False
+    (render.resolution_x, render.resolution_y, render.resolution_percentage,
+     render.pixel_aspect_x, render.pixel_aspect_y) = target
+    return True
 
 
 def clear_image():
