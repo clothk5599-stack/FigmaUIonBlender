@@ -120,3 +120,12 @@ def test_stop_cleans_up_temp_files(receiver):
     _, path, _ = receiver.events.get(timeout=2)
     receiver.stop()
     assert not os.path.exists(path) and not receiver.running
+
+
+def test_reachable_on_ipv4_and_ipv6_loopback(receiver):
+    # The Figma plugin uses "localhost", which may resolve to either.
+    port = receiver.port
+    assert json.loads(get(f"http://127.0.0.1:{port}/status")[2])["version"] == 0
+    if len(receiver._servers) < 2:
+        pytest.skip("no IPv6 loopback on this machine")
+    assert json.loads(get(f"http://[::1]:{port}/status")[2])["version"] == 0
