@@ -1,0 +1,178 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  :root {
+    --bg: var(--figma-color-bg, #ffffff);
+    --text: var(--figma-color-text, #1e1e1e);
+    --muted: var(--figma-color-text-secondary, #6b6b6b);
+    --border: var(--figma-color-border, #e6e6e6);
+    --brand: var(--figma-color-bg-brand, #0d99ff);
+    --on-brand: var(--figma-color-text-onbrand, #ffffff);
+    --success: var(--figma-color-icon-success, #14ae5c);
+    --danger: var(--figma-color-text-danger, #f24822);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 16px;
+    background: var(--bg);
+    color: var(--text);
+    font: 12px/16px Inter, system-ui, -apple-system, sans-serif;
+  }
+  h1 {
+    margin: 0 0 12px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+  }
+  .label { margin-top: 12px; color: var(--muted); font-size: 11px; }
+  .value { margin-top: 2px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .value.muted { color: var(--muted); font-weight: 400; }
+  .dot { display: inline-block; width: 8px; height: 8px; margin-right: 6px; border-radius: 50%; }
+  .dot.on { background: var(--success); }
+  .dot.off { background: var(--muted); }
+  button {
+    width: 100%;
+    margin-top: 16px;
+    padding: 8px 12px;
+    border: 0;
+    border-radius: 6px;
+    background: var(--brand);
+    color: var(--on-brand);
+    font: inherit;
+    font-weight: 500;
+    cursor: pointer;
+  }
+  button:disabled { opacity: 0.4; cursor: default; }
+  label.check { display: flex; align-items: center; gap: 8px; margin-top: 12px; cursor: pointer; }
+  .message { min-height: 32px; margin-top: 12px; color: var(--muted); font-size: 11px; }
+  .message.ok { color: var(--success); }
+  .message.error { color: var(--danger); }
+</style>
+</head>
+<body>
+  <h1>BLENDER PREVIEW</h1>
+
+  <div class="label">Connection</div>
+  <div class="value"><span id="connection-dot" class="dot off"></span><span id="connection-text">Checking…</span></div>
+
+  <div class="label">Selected Frame</div>
+  <div id="frame-name" class="value muted">Select a frame</div>
+
+  <div class="label">Resolution</div>
+  <div id="frame-size" class="value">—</div>
+
+  <button id="push" disabled>Push to Blender</button>
+
+  <label class="check"><input id="auto-push" type="checkbox"> Auto Push</label>
+
+  <div id="message" class="message"></div>
+
+  <!-- build.mjs inlines the bundled ui.ts here -->
+  <script>
+"use strict";
+(() => {
+  // messages.ts
+  var BRIDGE_URL = "http://localhost:8765";
+
+  // ui.ts
+  var STATUS_POLL_MS = 2e3;
+  var $ = (id) => document.getElementById(id);
+  var connectionDot = $("connection-dot");
+  var connectionText = $("connection-text");
+  var frameName = $("frame-name");
+  var frameSize = $("frame-size");
+  var pushButton = $("push");
+  var autoPush = $("auto-push");
+  var message = $("message");
+  var connected = false;
+  var frame = null;
+  var busy = false;
+  function send(msg) {
+    parent.postMessage({ pluginMessage: msg }, "*");
+  }
+  function formatSize(n) {
+    return Number.isInteger(n) ? String(n) : n.toFixed(2).replace(/\.?0+$/, "");
+  }
+  function setMessage(text, kind = "info") {
+    message.textContent = text;
+    message.className = `message ${kind}`;
+  }
+  function render() {
+    connectionDot.className = `dot ${connected ? "on" : "off"}`;
+    connectionText.textContent = connected ? "Connected to Blender" : "Blender not listening";
+    pushButton.disabled = !frame || busy;
+    pushButton.textContent = busy ? "Pushing\u2026" : "Push to Blender";
+  }
+  async function checkBlender() {
+    try {
+      const response = await fetch(`${BRIDGE_URL}/status`, { cache: "no-store" });
+      connected = response.ok;
+    } catch (e) {
+      connected = false;
+    }
+    render();
+  }
+  async function upload(msg) {
+    const form = new FormData();
+    form.append("image", new Blob([msg.bytes], { type: "image/png" }), "frame.png");
+    form.append("name", msg.frame.name);
+    form.append("width", String(msg.frame.width));
+    form.append("height", String(msg.frame.height));
+    form.append("scale", String(msg.scale));
+    form.append("updatedAt", String(Date.now() / 1e3));
+    try {
+      const response = await fetch(`${BRIDGE_URL}/ui`, { method: "POST", body: form });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(result.detail ? String(result.detail) : `HTTP ${response.status}`);
+      }
+      connected = true;
+      const time = (/* @__PURE__ */ new Date()).toLocaleTimeString();
+      setMessage(`${msg.auto ? "Auto-pushed" : "Pushed"} v${result.version} at ${time}`, "ok");
+    } catch (err) {
+      connected = false;
+      setMessage(`Push failed: ${err instanceof Error ? err.message : String(err)}. Is Blender open with the add-on started?`, "error");
+    } finally {
+      busy = false;
+      send({ type: "push-finished" });
+      render();
+    }
+  }
+  window.onmessage = (event) => {
+    const msg = event.data.pluginMessage;
+    if (!msg) return;
+    switch (msg.type) {
+      case "selection":
+        frame = msg.frame;
+        frameName.textContent = frame ? frame.name : msg.reason;
+        frameName.classList.toggle("muted", !frame);
+        frameSize.textContent = frame ? `${formatSize(frame.width)} \xD7 ${formatSize(frame.height)}` : "\u2014";
+        break;
+      case "exporting":
+        busy = true;
+        setMessage(`Exporting ${msg.frame.name}\u2026`);
+        break;
+      case "exported":
+        upload(msg);
+        break;
+      case "export-error":
+        busy = false;
+        setMessage(msg.message, "error");
+        break;
+    }
+    render();
+  };
+  pushButton.onclick = () => send({ type: "push" });
+  autoPush.onchange = () => send({ type: "set-auto", enabled: autoPush.checked });
+  checkBlender();
+  setInterval(checkBlender, STATUS_POLL_MS);
+  render();
+})();
+</script>
+</body>
+</html>

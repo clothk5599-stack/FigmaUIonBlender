@@ -41,16 +41,20 @@ the add-on preferences. If you change the port, also update `BRIDGE_URL` in
 `figma-plugin/messages.ts` and `devAllowedDomains` in
 `figma-plugin/manifest.json`, then rebuild the plugin.
 
-### 2. Build and load the Figma plugin
+### 2. Load the Figma plugin
+
+In the Figma **desktop app**, go to **Plugins → Development → Import plugin from
+manifest…** and choose `figma-plugin/manifest.json`.
+
+The built plugin (`figma-plugin/dist/`) is committed, so you don't need Node
+to use it. If you change the plugin's source (`*.ts`, `ui.html`), rebuild it
+and commit `dist/` along with your change:
 
 ```bash
 cd figma-plugin
 npm install
 npm run build               # → dist/code.js, dist/ui.html  (npm run watch while developing)
 ```
-
-In the Figma **desktop app**, go to **Plugins → Development → Import plugin from
-manifest…** and choose `figma-plugin/manifest.json`.
 
 ### 3. Use it
 

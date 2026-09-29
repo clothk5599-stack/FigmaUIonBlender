@@ -2,7 +2,6 @@ __pycache__/
 *.pyc
 .pytest_cache/
 node_modules/
-figma-plugin/dist/
 bridge/data/*
 !bridge/data/.gitkeep
 *.zip
