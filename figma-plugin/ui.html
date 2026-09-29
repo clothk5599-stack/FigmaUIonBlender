@@ -1,0 +1,78 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  :root {
+    --bg: var(--figma-color-bg, #ffffff);
+    --text: var(--figma-color-text, #1e1e1e);
+    --muted: var(--figma-color-text-secondary, #6b6b6b);
+    --border: var(--figma-color-border, #e6e6e6);
+    --brand: var(--figma-color-bg-brand, #0d99ff);
+    --on-brand: var(--figma-color-text-onbrand, #ffffff);
+    --success: var(--figma-color-icon-success, #14ae5c);
+    --danger: var(--figma-color-text-danger, #f24822);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 16px;
+    background: var(--bg);
+    color: var(--text);
+    font: 12px/16px Inter, system-ui, -apple-system, sans-serif;
+  }
+  h1 {
+    margin: 0 0 12px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+  }
+  .label { margin-top: 12px; color: var(--muted); font-size: 11px; }
+  .value { margin-top: 2px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .value.muted { color: var(--muted); font-weight: 400; }
+  .dot { display: inline-block; width: 8px; height: 8px; margin-right: 6px; border-radius: 50%; }
+  .dot.on { background: var(--success); }
+  .dot.off { background: var(--muted); }
+  button {
+    width: 100%;
+    margin-top: 16px;
+    padding: 8px 12px;
+    border: 0;
+    border-radius: 6px;
+    background: var(--brand);
+    color: var(--on-brand);
+    font: inherit;
+    font-weight: 500;
+    cursor: pointer;
+  }
+  button:disabled { opacity: 0.4; cursor: default; }
+  label.check { display: flex; align-items: center; gap: 8px; margin-top: 12px; cursor: pointer; }
+  .message { min-height: 32px; margin-top: 12px; color: var(--muted); font-size: 11px; }
+  .message.ok { color: var(--success); }
+  .message.error { color: var(--danger); }
+</style>
+</head>
+<body>
+  <h1>BLENDER PREVIEW</h1>
+
+  <div class="label">Connection</div>
+  <div class="value"><span id="connection-dot" class="dot off"></span><span id="connection-text">Checking…</span></div>
+
+  <div class="label">Selected Frame</div>
+  <div id="frame-name" class="value muted">Select a frame</div>
+
+  <div class="label">Resolution</div>
+  <div id="frame-size" class="value">—</div>
+
+  <button id="push" disabled>Push to Blender</button>
+
+  <label class="check"><input id="auto-push" type="checkbox"> Auto Push</label>
+
+  <div id="message" class="message"></div>
+
+  <!-- build.mjs inlines the bundled ui.ts here -->
+  <script src="ui.js"></script>
+</body>
+</html>

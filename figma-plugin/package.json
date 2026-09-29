@@ -1,0 +1,16 @@
+{
+  "name": "figma-blender-preview-plugin",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Figma plugin that pushes the selected frame to the local Blender preview bridge",
+  "scripts": {
+    "build": "node build.mjs",
+    "watch": "node build.mjs --watch",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@figma/plugin-typings": "^1.139.0",
+    "esbuild": "^0.28.0",
+    "typescript": "^5.9.0"
+  }
+}
