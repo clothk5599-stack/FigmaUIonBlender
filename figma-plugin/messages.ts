@@ -24,6 +24,7 @@ export type UIToMain =
   | { type: "set-auto"; enabled: boolean }
   | { type: "push-finished" };
 
-// The Blender add-on (or the optional bridge) listens here.
-export const BRIDGE_URL = "http://127.0.0.1:8765";
+// The Blender add-on (or the optional bridge) listens here. Must be
+// "localhost": Figma rejects IP addresses in manifest.json's devAllowedDomains.
+export const BRIDGE_URL = "http://localhost:8765";
 export const EXPORT_SCALE = 1;

@@ -6,7 +6,7 @@ It stays pixel-aligned and aspect-correct, and nothing you do with the camera
 (orbiting, moving, focal length, perspective/ortho) can move or distort it.
 
 ```text
-Figma plugin ──PNG + metadata──▶ Blender add-on (listens on 127.0.0.1:8765) ──▶ screen-space overlay
+Figma plugin ──PNG + metadata──▶ Blender add-on (listens on localhost:8765) ──▶ screen-space overlay
 ```
 
 There's nothing else to run: the add-on receives the image itself. (A Figma
@@ -35,7 +35,7 @@ enable **Figma UI Preview**. For development, you can instead symlink
 `blender-addon/figma_preview` into your Blender `scripts/addons` folder.
 
 Open the viewport sidebar (**N**) and select the **Design Preview** tab. It
-should say **Listening for Figma** (`http://127.0.0.1:8765`). The add-on
+should say **Listening for Figma** (`http://localhost:8765`). The add-on
 starts listening when Blender starts; turn that off, or change the port, in
 the add-on preferences. If you change the port, also update `BRIDGE_URL` in
 `figma-plugin/messages.ts` and `devAllowedDomains` in
@@ -100,8 +100,10 @@ the selected frame or select a different one.
   shader can't compile, the add-on falls back to the built-in `IMAGE_COLOR`
   shader.
 - **Receiving without blocking Blender.** The receiver (`receiver.py`, Python
-  standard library only) runs on a background thread, bound to `127.0.0.1` so
-  only programs on your machine can reach it. It never touches `bpy`: it writes
+  standard library only) runs on a background thread, bound to loopback
+  (`127.0.0.1` and `::1`) so only programs on your machine can reach it. The
+  plugin connects to `localhost`, because Figma doesn't accept IP addresses in
+  the manifest's `devAllowedDomains`. It never touches `bpy`: it writes
   each pushed PNG to a temp file and queues it.
 - **No flicker.** A timer on the main thread builds the new texture and swaps
   it in with a single assignment. The old texture stays on screen until the new
@@ -175,7 +177,7 @@ For the Figma plugin, run `npm run typecheck` in `figma-plugin/`.
 
 - **Plugin says "Blender not listening"**: open Blender, check that the
   **Design Preview** panel says **Listening for Figma** (click **Start** if
-  not), and check that `http://127.0.0.1:8765/status` opens in a browser.
+  not), and check that `http://localhost:8765/status` opens in a browser.
 - **Panel says "Port 8765 is in use"**: another program is using the port,
   often `bridge/server.py` or a second Blender window. Stop it, or pick another
   port (see Quick start step 1).

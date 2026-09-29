@@ -1,7 +1,8 @@
 """Built-in receiver: the Figma plugin pushes straight into Blender.
 
 A small HTTP server (standard library only) runs on a background thread
-inside Blender and speaks the same API as ``bridge/server.py``:
+inside Blender, on loopback only (127.0.0.1 and ::1), and speaks the same API
+as ``bridge/server.py``:
 
     POST /ui          multipart: image (PNG), name, width, height, scale
     GET  /status      availability + version (the plugin's connection check)
@@ -18,6 +19,7 @@ import os
 import queue
 import re
 import shutil
+import socket
 import struct
 import tempfile
 import threading
@@ -87,11 +89,15 @@ def _number(fields, key, default):
     return value if value > 0 else default
 
 
+class _HTTPServerV6(ThreadingHTTPServer):
+    address_family = socket.AF_INET6
+
+
 class UIReceiver:
     def __init__(self):
         self.events = queue.Queue()
-        self._server = None
-        self._thread = None
+        self._servers = []
+        self._threads = []
         self._lock = threading.Lock()
         self._version = 0
         self._latest = None  # (png bytes, meta)
@@ -99,33 +105,48 @@ class UIReceiver:
 
     @property
     def running(self):
-        return self._thread is not None and self._thread.is_alive()
+        return any(thread.is_alive() for thread in self._threads)
+
+    @property
+    def port(self):
+        return self._servers[0].server_address[1] if self._servers else 0
 
     @property
     def address(self):
-        if self._server is None:
-            return ""
-        host, port = self._server.server_address[:2]
-        return f"http://{host}:{port}"
+        return f"http://localhost:{self.port}" if self._servers else ""
 
     def start(self, host="127.0.0.1", port=8765):
-        """Start listening. Raises OSError if the port is already in use."""
+        """Start listening. Raises OSError if the port is already in use.
+
+        The Figma plugin connects to ``localhost`` (Figma rejects IP
+        addresses in the manifest), which may resolve to IPv4 or IPv6
+        loopback, so on 127.0.0.1 also listen on ::1 when it is available.
+        """
         self.stop()
-        server = ThreadingHTTPServer((host, port), _make_handler(self))
-        server.daemon_threads = True
-        self._server = server
+        handler = _make_handler(self)
+        primary = ThreadingHTTPServer((host, port), handler)
+        servers = [primary]
+        if host == "127.0.0.1" and socket.has_ipv6:
+            try:
+                servers.append(_HTTPServerV6(("::1", primary.server_address[1]), handler))
+            except OSError:
+                pass  # no IPv6 loopback, or ::1 port taken; IPv4 still works
         self._tmpdir = tempfile.mkdtemp(prefix="figma_preview_")
-        self._thread = threading.Thread(target=server.serve_forever, kwargs={"poll_interval": 0.2},
-                                        name="FigmaPreviewReceiver", daemon=True)
-        self._thread.start()
+        for server in servers:
+            server.daemon_threads = True
+            thread = threading.Thread(target=server.serve_forever, kwargs={"poll_interval": 0.2},
+                                      name="FigmaPreviewReceiver", daemon=True)
+            thread.start()
+            self._servers.append(server)
+            self._threads.append(thread)
 
     def stop(self):
-        server, thread = self._server, self._thread
-        self._server = self._thread = None
-        if server is not None:
+        servers, threads = self._servers, self._threads
+        self._servers, self._threads = [], []
+        for server in servers:
             server.shutdown()
             server.server_close()
-        if thread is not None:
+        for thread in threads:
             thread.join(timeout=2.0)
         # Queued images live in the temp dir that is removed below.
         while True:

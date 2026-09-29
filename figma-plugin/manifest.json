@@ -8,7 +8,7 @@
   "documentAccess": "dynamic-page",
   "networkAccess": {
     "allowedDomains": ["none"],
-    "devAllowedDomains": ["http://127.0.0.1:8765", "http://localhost:8765"],
+    "devAllowedDomains": ["http://localhost:8765"],
     "reasoning": "Sends the exported frame to Blender (Figma UI Preview add-on) running on this machine."
   }
 }
