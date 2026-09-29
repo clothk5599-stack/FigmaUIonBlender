@@ -5,14 +5,13 @@ from bpy.props import StringProperty
 from bpy_extras.io_utils import ImportHelper
 
 from . import overlay, sync
-from .network import poller
 from .state import state
 
 
 class FIGMAPREVIEW_OT_connect(bpy.types.Operator):
     bl_idname = "figma_preview.connect"
-    bl_label = "Connect"
-    bl_description = "Start polling the local bridge for new Figma pushes"
+    bl_label = "Start"
+    bl_description = "Start receiving frames pushed from the Figma plugin"
 
     def execute(self, context):
         sync.connect()
@@ -21,8 +20,8 @@ class FIGMAPREVIEW_OT_connect(bpy.types.Operator):
 
 class FIGMAPREVIEW_OT_disconnect(bpy.types.Operator):
     bl_idname = "figma_preview.disconnect"
-    bl_label = "Disconnect"
-    bl_description = "Stop polling the bridge (the current UI image stays visible)"
+    bl_label = "Stop"
+    bl_description = "Stop receiving frames (the current UI image stays visible)"
 
     def execute(self, context):
         sync.disconnect()
@@ -32,17 +31,17 @@ class FIGMAPREVIEW_OT_disconnect(bpy.types.Operator):
 class FIGMAPREVIEW_OT_reload(bpy.types.Operator):
     bl_idname = "figma_preview.reload"
     bl_label = "Reload"
-    bl_description = "Reload the UI image from the bridge, or from disk for a loaded file"
+    bl_description = "Reload the last Figma push, or the PNG from disk for a loaded file"
 
     def execute(self, context):
-        if state.source == "file" and state.file_path and not poller.running:
+        if state.source == "file" and state.file_path:
             try:
                 overlay.set_image(state.file_path, source="file")
             except Exception as exc:
                 self.report({"ERROR"}, f"Could not reload image: {exc}")
                 return {"CANCELLED"}
-        elif poller.running:
-            poller.force_reload()
+        elif sync.is_running():
+            sync.reload()
         else:
             sync.connect()
         return {"FINISHED"}
@@ -51,7 +50,7 @@ class FIGMAPREVIEW_OT_reload(bpy.types.Operator):
 class FIGMAPREVIEW_OT_load_file(bpy.types.Operator, ImportHelper):
     bl_idname = "figma_preview.load_file"
     bl_label = "Load PNG"
-    bl_description = "Show a PNG from disk as the UI overlay (no bridge needed)"
+    bl_description = "Show a PNG from disk as the UI overlay (the next Figma push replaces it)"
 
     filename_ext = ".png"
     filter_glob: StringProperty(default="*.png", options={"HIDDEN"})
@@ -60,8 +59,6 @@ class FIGMAPREVIEW_OT_load_file(bpy.types.Operator, ImportHelper):
         if not os.path.isfile(self.filepath):
             self.report({"ERROR"}, "Choose a PNG file")
             return {"CANCELLED"}
-        # A manual file takes over from the bridge until you reconnect.
-        sync.disconnect()
         try:
             overlay.set_image(self.filepath, source="file")
         except Exception as exc:

@@ -6,33 +6,23 @@ It stays pixel-aligned and aspect-correct, and nothing you do with the camera
 (orbiting, moving, focal length, perspective/ortho) can move or distort it.
 
 ```text
-Figma plugin ──PNG + metadata──▶ local bridge (127.0.0.1:8765) ◀──polls── Blender add-on
-                                  data/latest.png                          screen-space overlay
-                                  data/metadata.json
+Figma plugin ──PNG + metadata──▶ Blender add-on (listens on 127.0.0.1:8765) ──▶ screen-space overlay
 ```
+
+There's nothing else to run: the add-on receives the image itself. (A Figma
+plugin can only send images out over a local web request, so Blender listens
+for it on your machine only.)
 
 | Folder | What it is |
 | --- | --- |
-| `figma-plugin/` | Figma plugin: exports the selected frame at 1× as a transparent PNG and pushes it to the bridge |
-| `bridge/` | FastAPI server that keeps only the latest image + metadata and a version counter |
-| `blender-addon/figma_preview/` | Blender add-on: polls the bridge and draws the image in a `POST_PIXEL` viewport handler |
+| `figma-plugin/` | Figma plugin: exports the selected frame at 1× as a transparent PNG and sends it to Blender |
+| `blender-addon/figma_preview/` | Blender add-on: receives the image and draws it in a `POST_PIXEL` viewport handler |
+| `bridge/` | Optional: a separate FastAPI relay that Blender polls instead (see [Optional: external bridge](#optional-external-bridge)) |
 | `tools/` | `push_test.py`: pushes generated test frames without Figma |
 
 ## Quick start
 
-### 1. Start the bridge
-
-```bash
-cd bridge
-python -m pip install -r requirements.txt
-python server.py            # serves http://127.0.0.1:8765
-```
-
-Set `FIGMA_BRIDGE_PORT` / `FIGMA_BRIDGE_HOST` to change the address. If you
-change the port, also update `BRIDGE_URL` in `figma-plugin/messages.ts`,
-`devAllowedDomains` in `figma-plugin/manifest.json`, and the add-on preference.
-
-### 2. Install the Blender add-on (Blender 4.0+)
+### 1. Install the Blender add-on (Blender 4.0+)
 
 ```bash
 cd blender-addon
@@ -44,11 +34,14 @@ In Blender, go to **Edit → Preferences → Add-ons**, choose **Install…**
 enable **Figma UI Preview**. For development, you can instead symlink
 `blender-addon/figma_preview` into your Blender `scripts/addons` folder.
 
-Open the viewport sidebar (**N**) and select the **Design Preview** tab. The
-add-on connects to the bridge automatically. You can change the bridge URL,
-poll interval, and auto-connect in the add-on preferences.
+Open the viewport sidebar (**N**) and select the **Design Preview** tab. It
+should say **Listening for Figma** (`http://127.0.0.1:8765`). The add-on
+starts listening when Blender starts; turn that off, or change the port, in
+the add-on preferences. If you change the port, also update `BRIDGE_URL` in
+`figma-plugin/messages.ts` and `devAllowedDomains` in
+`figma-plugin/manifest.json`, then rebuild the plugin.
 
-### 3. Build and load the Figma plugin
+### 2. Build and load the Figma plugin
 
 ```bash
 cd figma-plugin
@@ -59,11 +52,11 @@ npm run build               # → dist/code.js, dist/ui.html  (npm run watch whi
 In the Figma **desktop app**, go to **Plugins → Development → Import plugin from
 manifest…** and choose `figma-plugin/manifest.json`.
 
-### 4. Use it
+### 3. Use it
 
-1. In Figma, select a frame and run **Blender Preview**.
-2. The plugin shows the connection state, the frame name, and its size. Click **Push to Blender**.
-3. The Blender viewport updates within about 250 ms.
+1. Keep Blender open. In Figma, select a frame and run **Blender Preview**.
+2. The plugin shows **Connected to Blender**, the frame name, and its size. Click **Push to Blender**.
+3. The Blender viewport updates immediately.
 
 Turn on **Auto Push** to re-export automatically about 0.4 s after you edit
 the selected frame or select a different one.
@@ -72,7 +65,7 @@ the selected frame or select a different one.
 
 **3D Viewport → Sidebar → Design Preview → Figma UI**
 
-- **Status / Connect / Disconnect / Reload**: bridge connection. **Reload** re-downloads the latest push.
+- **Status / Start / Stop / Reload**: whether Blender is listening for Figma. **Reload** re-applies the last push.
 - **Frame info**: name, size in Figma units, and version.
 - **Visible**, **Opacity**
 - **Display**: **Fit** scales the frame to the largest size that fits the
@@ -84,7 +77,7 @@ the selected frame or select a different one.
   headers when Region Overlap is on.
 - **Tools ▸**:
   - **Match Render Resolution** sets the scene render size to the frame size, so the camera frame has the same aspect ratio.
-  - **Load PNG** shows a PNG from disk without the bridge.
+  - **Load PNG** shows a PNG from disk (for example, one you exported from Figma by hand). The next push from Figma replaces it.
   - **Clear** removes the image.
 
 ## How it works
@@ -93,7 +86,8 @@ the selected frame or select a different one.
   `SpaceView3D.draw_handler_add(..., "WINDOW", "POST_PIXEL")`. The image is a
   2D quad in region pixel coordinates, drawn after the scene. It never goes
   through the view or camera projection, so the camera can only change the 3D
-  scene.
+  scene. This is the same in camera view (Numpad 0): the UI stays fixed to
+  the viewport.
 - **Aspect ratio comes from Figma.** The preview rectangle is computed from the
   pushed frame's width and height (`layout.py`) and rounded to whole pixels.
   When you push a frame with a different size, the preview rectangle updates
@@ -105,16 +99,20 @@ the selected frame or select a different one.
   same as in Figma whether or not the viewport framebuffer is sRGB. If that
   shader can't compile, the add-on falls back to the built-in `IMAGE_COLOR`
   shader.
-- **No flicker.** A background thread polls `GET /status` and downloads
-  `/latest.png` only when the version changes. It never touches `bpy`. A timer
-  on the main thread builds the new texture and swaps it in with a single
-  assignment. The old texture stays on screen until the new one is ready. If a
-  download fails to load, the previous UI stays visible.
-- **No accumulation.** The bridge overwrites `data/latest.png` and
-  `data/metadata.json` atomically. Blender deletes each downloaded temp file
-  after upload and removes the decode datablock.
+- **Receiving without blocking Blender.** The receiver (`receiver.py`, Python
+  standard library only) runs on a background thread, bound to `127.0.0.1` so
+  only programs on your machine can reach it. It never touches `bpy`: it writes
+  each pushed PNG to a temp file and queues it.
+- **No flicker.** A timer on the main thread builds the new texture and swaps
+  it in with a single assignment. The old texture stays on screen until the new
+  one is ready. If an image fails to load, the previous UI stays visible.
+- **No accumulation.** Blender keeps only the latest image in memory, deletes
+  each temp file after upload, and removes the decode datablock.
 
-## Bridge API
+## API
+
+The add-on's receiver and the optional bridge serve the same API, so the
+Figma plugin and `push_test.py` work with either.
 
 | Method | Path | Description |
 | --- | --- | --- |
@@ -123,8 +121,8 @@ the selected frame or select a different one.
 | `GET` | `/latest.png` | Latest image. `X-UI-Version`, `X-UI-Name`, `X-UI-Width`, `X-UI-Height`, and `X-UI-Scale` headers describe exactly these bytes |
 | `GET` | `/metadata` | Contents of `metadata.json` |
 
-If `width`/`height` are missing, the bridge uses the PNG size ÷ `scale`. It
-rejects anything that isn't a PNG. The version counter survives restarts.
+If `width`/`height` are missing, the PNG size ÷ `scale` is used. Anything that
+isn't a PNG is rejected.
 
 ```bash
 curl -F image=@frame.png -F name=MasterLayout -F width=2048 -F height=460 http://127.0.0.1:8765/ui
@@ -140,7 +138,8 @@ python tools/push_test.py --loop 1           # new variant every second → hot-
 python tools/push_test.py --save test.png    # PNG only (use with "Load PNG" in Blender)
 ```
 
-The test frame has a 2 px white border, corner blocks, and a center cross. You
+These send to Blender directly (or to the bridge, whichever is listening on
+port 8765). The test frame has a 2 px white border, corner blocks, and a center cross. You
 can use them to check alignment and aspect ratio. The number of small squares
 under the top bar shows the variant.
 
@@ -151,8 +150,9 @@ python -m pip install -r bridge/requirements-dev.txt
 python -m pytest bridge/tests blender-addon/tests
 ```
 
-`blender-addon/tests/test_addon_bpy.py` runs only when the `bpy` module is
-installed (`pip install bpy==4.2.*` on Python 3.11). It covers registration,
+`blender-addon/tests/test_receiver.py` covers the built-in receiver and needs
+no Blender. `blender-addon/tests/test_addon_bpy.py` runs only when the `bpy`
+module is installed (`pip install bpy==4.2.*` on Python 3.11). It covers registration,
 PNG decoding, the poller, and the texture-swap logic. Blender can't draw with
 the GPU in background mode, so you need to check the overlay drawing itself in
 a running Blender. Use the checklist below.
@@ -173,13 +173,31 @@ For the Figma plugin, run `npm run typecheck` in `figma-plugin/`.
 
 ## Troubleshooting
 
-- **Plugin says "Bridge not running"**: start `bridge/server.py` and check that
-  `http://127.0.0.1:8765/status` opens in a browser.
-- **Blender panel says "Bridge offline"**: check the bridge URL in the add-on
-  preferences.
+- **Plugin says "Blender not listening"**: open Blender, check that the
+  **Design Preview** panel says **Listening for Figma** (click **Start** if
+  not), and check that `http://127.0.0.1:8765/status` opens in a browser.
+- **Panel says "Port 8765 is in use"**: another program is using the port,
+  often `bridge/server.py` or a second Blender window. Stop it, or pick another
+  port (see Quick start step 1).
 - **Colors look washed out or too dark in Blender**: the system console shows
   whether the custom image shader fell back to `IMAGE_COLOR`. Please report
   your Blender version and GPU backend.
+
+## Optional: external bridge
+
+`bridge/` is a separate relay server. It can be useful for debugging, or if
+you want the last pushed frame kept on disk (`bridge/data/`) across Blender
+restarts. To use it:
+
+```bash
+cd bridge
+python -m pip install -r requirements.txt
+python server.py            # serves http://127.0.0.1:8765
+```
+
+Then in the add-on preferences set **Receive Mode** to **External Bridge**. The
+add-on then polls the bridge every 250 ms instead of listening itself. Only
+one of the two can use port 8765 at a time.
 
 ## Out of scope (V1)
 

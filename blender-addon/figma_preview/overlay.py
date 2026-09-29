@@ -132,7 +132,7 @@ def load_texture(path):
     return texture, width, height
 
 
-def set_image(path, name="", width=0.0, height=0.0, version=0, source="bridge"):
+def set_image(path, name="", width=0.0, height=0.0, version=0, source="figma"):
     """Load ``path`` and swap it in. The old texture stays visible until the
     new one is uploaded, so updates never show a blank frame."""
     texture, pixel_w, pixel_h = load_texture(path)

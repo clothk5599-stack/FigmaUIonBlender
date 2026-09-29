@@ -1,5 +1,5 @@
 // Plugin UI iframe: shows connection + selection state and uploads exported
-// frames to the local bridge.
+// frames to Blender (the add-on listens on localhost; or the optional bridge).
 
 import { BRIDGE_URL, FrameInfo, MainToUI, UIToMain } from "./messages";
 
@@ -33,12 +33,12 @@ function setMessage(text: string, kind: "info" | "ok" | "error" = "info") {
 
 function render() {
   connectionDot.className = `dot ${connected ? "on" : "off"}`;
-  connectionText.textContent = connected ? "Connected" : "Bridge not running";
+  connectionText.textContent = connected ? "Connected to Blender" : "Blender not listening";
   pushButton.disabled = !frame || busy;
   pushButton.textContent = busy ? "Pushing…" : "Push to Blender";
 }
 
-async function checkBridge() {
+async function checkBlender() {
   try {
     const response = await fetch(`${BRIDGE_URL}/status`, { cache: "no-store" });
     connected = response.ok;
@@ -68,7 +68,7 @@ async function upload(msg: Extract<MainToUI, { type: "exported" }>) {
   } catch (err) {
     connected = false;
     setMessage(`Push failed: ${err instanceof Error ? err.message : String(err)}. ` +
-      "Is the bridge running?", "error");
+      "Is Blender open with the add-on started?", "error");
   } finally {
     busy = false;
     send({ type: "push-finished" });
@@ -106,6 +106,6 @@ window.onmessage = (event: MessageEvent) => {
 pushButton.onclick = () => send({ type: "push" });
 autoPush.onchange = () => send({ type: "set-auto", enabled: autoPush.checked });
 
-checkBridge();
-setInterval(checkBridge, STATUS_POLL_MS);
+checkBlender();
+setInterval(checkBlender, STATUS_POLL_MS);
 render();
