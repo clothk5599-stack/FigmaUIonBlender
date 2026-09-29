@@ -68,6 +68,7 @@ class FIGMAPREVIEW_PT_main(bpy.types.Panel):
         sub.active = settings.visible
         sub.prop(settings, "opacity", slider=True)
         sub.row().prop(settings, "display_mode", expand=True)
+        layout.operator("figma_preview.view_selected_camera", icon="VIEW_CAMERA")
 
 
 class FIGMAPREVIEW_PT_guides(bpy.types.Panel):

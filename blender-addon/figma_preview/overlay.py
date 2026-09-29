@@ -241,8 +241,18 @@ def _region_overlaps(area, region):
     return rects
 
 
+def viewed_camera(context):
+    """The camera this viewport looks through in camera view: its own local
+    camera if it has one (View sidebar > Local Camera), else the scene's."""
+    space = getattr(context, "space_data", None)
+    if space is not None and getattr(space, "use_local_camera", False) and space.camera:
+        return space.camera
+    scene = context.scene
+    return scene.camera if scene is not None else None
+
+
 def camera_frame_rect(context):
-    """The active camera's frame (the render border) in region pixels, when
+    """The viewed camera's frame (the render border) in region pixels, when
     looking through the camera; otherwise None.
 
     Only the rectangle is taken from the camera. The UI itself is still
@@ -251,7 +261,7 @@ def camera_frame_rect(context):
     region, rv3d, scene = context.region, context.region_data, context.scene
     if rv3d is None or rv3d.view_perspective != "CAMERA" or scene is None:
         return None
-    camera = scene.camera
+    camera = viewed_camera(context)
     if camera is None or camera.type != "CAMERA":
         return None
     matrix = camera.matrix_world

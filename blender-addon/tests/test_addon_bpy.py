@@ -205,3 +205,46 @@ def test_camera_follows_ui_size_on_push(addon, tmp_path, monkeypatch):
     settings.camera_follows_ui = True  # turning it back on applies immediately
     assert (render.resolution_x, render.resolution_y) == (800, 600)
     overlay.clear_image()
+
+
+def test_ui_follows_the_camera_the_viewport_looks_through(addon):
+    """A viewport with its own local camera snaps to that camera, not scene.camera."""
+    from types import SimpleNamespace
+
+    from figma_preview import overlay
+
+    scene = bpy.context.scene
+    cams = []
+    for name, lens in (("SceneCam", 35), ("LocalCam", 85)):
+        cam = bpy.data.objects.new(name, bpy.data.cameras.new(name))
+        scene.collection.objects.link(cam)
+        cam.location = (0.0, -6.0, 1.0)
+        cam.rotation_euler = (1.5708, 0.0, 0.0)
+        cam.data.lens = lens
+        cams.append(cam)
+    scene_cam, local_cam = cams
+    scene.camera = scene_cam
+    scene.render.resolution_x, scene.render.resolution_y = 2048, 460
+    bpy.context.view_layer.update()
+
+    # The viewport projects exactly like the local camera.
+    w, h = 1024, 230
+    depsgraph = bpy.context.evaluated_depsgraph_get()
+    projection = local_cam.calc_matrix_camera(depsgraph, x=w, y=h)
+    rv3d = SimpleNamespace(view_perspective="CAMERA",
+                           perspective_matrix=projection @ local_cam.matrix_world.inverted())
+    space = SimpleNamespace(use_local_camera=True, camera=local_cam)
+    context = SimpleNamespace(region=SimpleNamespace(width=w, height=h), region_data=rv3d,
+                              scene=scene, space_data=space)
+
+    assert overlay.viewed_camera(context) is local_cam
+    x, y, fw, fh = overlay.camera_frame_rect(context)
+    assert abs(x) <= 1 and abs(y) <= 1 and abs(fw - w) <= 1 and abs(fh - h) <= 1
+
+    space.use_local_camera = False  # back to the scene camera
+    assert overlay.viewed_camera(context) is scene_cam
+
+
+def test_view_selected_camera_needs_a_viewport_and_a_camera(addon):
+    # Background mode has no 3D viewport, so the button is disabled.
+    assert not bpy.ops.figma_preview.view_selected_camera.poll()

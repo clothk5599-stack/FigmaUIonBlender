@@ -75,14 +75,20 @@ the selected frame or select a different one.
 - **Display**: **Fit** scales the frame to the largest size that fits the
   viewport without stretching (letterbox or pillarbox). **1:1** draws one
   Figma pixel per screen pixel.
+- **View Selected Camera**: select a camera, then click this. The viewport
+  looks through that camera and frames it, and the UI snaps onto the camera
+  frame. It's like **Ctrl+Numpad 0** followed by **Home**. If the viewport has
+  its own **Local Camera** (View sidebar), that camera is used instead of the
+  scene camera.
 - **Display ▸**: **Dim Outside Frame** (with an amount), **Safe Area** (with an
   inset margin), **Center Lines**, **Frame Border**, and guide color.
   **Camera Follows UI Size** (on by default): every push sets the scene's
   render resolution to the Figma frame size (for example 2048 × 460), so the
   camera frame always has the UI's size and shape. Turn it off to keep your
   own render size.
-  **Fit to Camera Frame** (on by default): when you look through the camera
-  (Numpad 0), the UI fits the camera frame, the outlined area that renders,
+  **Fit to Camera Frame** (on by default): when you look through a camera
+  (Numpad 0, or a viewport's Local Camera), the UI fits that camera's frame,
+  the outlined area that renders,
   instead of the whole viewport. Turn it off to keep the UI on the whole
   viewport in camera view too. **Avoid Side Panels** fits the preview between the toolbar, sidebar, and
   headers when Region Overlap is on.

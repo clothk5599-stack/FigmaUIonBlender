@@ -1,7 +1,7 @@
 bl_info = {
     "name": "Figma UI Preview",
     "author": "FigmaUIonBlender",
-    "version": (0, 3, 0),
+    "version": (0, 4, 0),
     "blender": (4, 0, 0),
     "location": "3D Viewport > Sidebar (N) > Design Preview",
     "description": "Show a Figma frame as a pixel-aligned screen-space overlay "

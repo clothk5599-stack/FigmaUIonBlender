@@ -93,7 +93,38 @@ class FIGMAPREVIEW_OT_match_render(bpy.types.Operator):
         return {"FINISHED"}
 
 
+class FIGMAPREVIEW_OT_view_selected_camera(bpy.types.Operator):
+    bl_idname = "figma_preview.view_selected_camera"
+    bl_label = "View Selected Camera"
+    bl_description = ("Look through the selected camera, frame it in the viewport "
+                      "and snap the UI onto its frame")
+
+    @classmethod
+    def poll(cls, context):
+        obj = context.active_object
+        return (obj is not None and obj.type == "CAMERA"
+                and context.area is not None and context.area.type == "VIEW_3D")
+
+    def execute(self, context):
+        camera = context.active_object
+        space = context.space_data
+        if space.use_local_camera:
+            space.camera = camera  # this viewport has its own camera
+        else:
+            context.scene.camera = camera
+        context.scene.figma_preview.fit_camera_frame = True
+        space.region_3d.view_perspective = "CAMERA"
+        window = next((r for r in context.area.regions if r.type == "WINDOW"), None)
+        if window is not None:
+            # Same as View > Cameras > Frame Camera Bounds (Home in camera view).
+            with context.temp_override(region=window):
+                bpy.ops.view3d.view_center_camera()
+        overlay.tag_redraw()
+        return {"FINISHED"}
+
+
 classes = (
+    FIGMAPREVIEW_OT_view_selected_camera,
     FIGMAPREVIEW_OT_connect,
     FIGMAPREVIEW_OT_disconnect,
     FIGMAPREVIEW_OT_reload,
